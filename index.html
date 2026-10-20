@@ -510,7 +510,7 @@ async function sb(table,cols,from,to){
   return out;
 }
 function calc(meta,google,orders,ga4){
-  const paid=orders.filter(o=>(o.order_payment_status||'').toLowerCase()==='paid');
+  const paid=orders.filter(o=>['paid','partially_refunded'].includes((o.order_payment_status||'').toLowerCase()));
   const facturacion=sum(paid,o=>o.order_total_paid), ordenes=paid.length, ticket=ordenes?facturacion/ordenes:0;
   const sesiones=sum(ga4,x=>x.sessions), users=sum(ga4,x=>x.total_users);
   const conv=sesiones?ordenes/sesiones*100:0;
@@ -576,7 +576,7 @@ function render(c,p,D){
 
   const N=dayDiff(state.from,state.to)+1;
   const lab=[],fdata=[];
-  const fac={}; D.ordersCur.filter(o=>(o.order_payment_status||'').toLowerCase()==='paid').forEach(o=>{fac[o.date]=(fac[o.date]||0)+(parseFloat(o.order_total_paid)||0);});
+  const fac={}; D.ordersCur.filter(o=>['paid','partially_refunded'].includes((o.order_payment_status||'').toLowerCase())).forEach(o=>{fac[o.date]=(fac[o.date]||0)+(parseFloat(o.order_total_paid)||0);});
   for(let i=0;i<N;i++){const d=addDays(state.from,i);lab.push(d.getDate()+'/'+(d.getMonth()+1));fdata.push(fac[iso(d)]||0);}
   mkLine('cFactDia',lab,[{label:'Facturación',data:fdata,borderColor:ORANGE,backgroundColor:'rgba(255,112,10,.12)',fill:true,tension:.3,pointRadius:N>45?0:3,pointBackgroundColor:ORANGE,borderWidth:2}],false);
 
@@ -853,7 +853,7 @@ async function loadObjetivos(){
     const obj=(objR&&objR[0])||null;
     if(!obj){box.innerHTML='<div class="ke-pg-sub">Sin objetivos cargados para '+mm+'. Completá la hoja de objetivos.</div>';setTxt('goal-mes','');return;}
     const realMeta=sum(meta,x=>x.amount_spent),realGoogle=sum(google,x=>x.cost);
-    const paid=orders.filter(o=>(o.order_payment_status||'').toLowerCase()==='paid');
+    const paid=orders.filter(o=>['paid','partially_refunded'].includes((o.order_payment_status||'').toLowerCase()));
     const realFact=sum(paid,o=>o.order_total_paid),realOrd=paid.length;
     setTxt('goal-mes','Mes en curso · día '+diaHoy+'/'+diasMes+' · ritmo ideal '+idealPct.toFixed(0)+'%');
     const bar=(name,real,objv,kind)=>{
