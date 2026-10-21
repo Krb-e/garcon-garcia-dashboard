@@ -395,6 +395,8 @@ table.ke-t td.name{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-
 .ig-pdate{font-size:10px;color:var(--ke-muted,#888);letter-spacing:.5px;text-transform:uppercase;}
 .ig-pmetrics{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:auto;font-size:11px;color:var(--ke-muted,#aaa);}
 .ig-pmetrics span{white-space:nowrap;}
+.ig-thumb.story{aspect-ratio:9/16;}
+.ke-ins-area{display:inline-block;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ke-orange,#ff700a);border:1px solid var(--ke-orange,#ff700a);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
 </style>
 
 <section id="p2" class="ke-page">
@@ -440,6 +442,18 @@ table.ke-t td.name{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-
 
   <div class="ke-sec-head"><div class="ke-sec-line"></div><span class="ke-sec-label">Mejores publicaciones · últimos 90 días</span></div>
   <div id="ig-posts" class="ig-posts-grid"><div class="ke-pg-sub">Cargando publicaciones…</div></div>
+
+  <div class="ke-sec-head"><div class="ke-sec-line"></div><span class="ke-sec-label">Historias · recientes</span><span class="ke-goal-mes">Vía <b>Graph API</b> · captura cada 6 h</span></div>
+  <div class="ke-grid-4" id="st-kpis" style="display:none">
+    <div class="ke-kc"><div class="ke-kl">Historias</div><div id="st-count" class="ke-kv">—</div><div class="ke-ks">capturadas</div></div>
+    <div class="ke-kc g"><div class="ke-kl">Alcance total</div><div id="st-reach" class="ke-kv g">—</div><div class="ke-ks">suma</div></div>
+    <div class="ke-kc"><div class="ke-kl">Visualizaciones</div><div id="st-views" class="ke-kv w">—</div><div class="ke-ks">suma</div></div>
+    <div class="ke-kc"><div class="ke-kl">Interacciones</div><div id="st-int" class="ke-kv w">—</div><div class="ke-ks">respuestas + acciones</div></div>
+  </div>
+  <div id="ig-stories" class="ig-posts-grid"><div class="ke-pg-sub">Cargando historias…</div></div>
+
+  <div class="ke-sec-head"><div class="ke-sec-line"></div><span class="ke-sec-label">Conclusiones &amp; accionables · Social Media</span><span class="ke-goal-mes">Sprint Review · <b>Notion</b></span></div>
+  <div id="insights-sm" class="ke-ins-wrap"><div class="ke-pg-sub">Cargando…</div></div>
 </section>
 
 
@@ -876,16 +890,19 @@ async function loadObjetivos(){
 /* ===== Sprint Review / Conclusiones & accionables (Notion -> garcon_garcia_insights) ===== */
 async function loadInsights(area,elId){
   const el=document.getElementById(elId);if(!el)return;
+  const areas=Array.isArray(area)?area:[area];
+  const multi=areas.length>1;
   try{
     const headers={apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY};
-    const url=SUPABASE_URL+'/rest/v1/garcon_garcia_insights?select=notion_id,semana,area,responsable,estatus,accionable,impacto_esperado,resumen&area=eq.'+encodeURIComponent(area)+'&order=semana.desc';
+    const flt=multi?('area=in.('+areas.map(a=>'"'+encodeURIComponent(a)+'"').join(',')+')'):('area=eq.'+encodeURIComponent(areas[0]));
+    const url=SUPABASE_URL+'/rest/v1/garcon_garcia_insights?select=notion_id,semana,area,responsable,estatus,accionable,impacto_esperado,resumen&'+flt+'&order=semana.desc';
     const r=await fetch(url,{headers});
     if(r.status===404){el.innerHTML='<div class="ke-pg-sub">Sprint Review todavía no conectado.</div>';return;}
     if(!r.ok)throw new Error('insights '+r.status);
     const raw=await r.json();
     const seen={},rows=[];
     raw.forEach(x=>{const id=x.notion_id||((x.semana||'-')+'|'+(x.estatus||''));if(seen[id])return;seen[id]=1;rows.push(x);});
-    if(!rows.length){el.innerHTML='<div class="ke-pg-sub">Sin entradas de <b>'+area+'</b> en el Sprint Review de Notion.</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="ke-pg-sub">Sin entradas de <b>'+areas.join(' / ')+'</b> en el Sprint Review de Notion.</div>';return;}
     const bySem={},order=[];
     rows.forEach(x=>{const k=x.semana||'-';if(!(k in bySem)){bySem[k]=[];order.push(k);}bySem[k].push(x);});
     const weeks=order.slice(0,2).reverse();
@@ -894,7 +911,7 @@ async function loadInsights(area,elId){
     const cell=(l,v)=>v?('<div class="ke-ins-field"><div class="l">'+l+'</div><div class="v">'+esc(v)+'</div></div>'):'';
     el.innerHTML=weeks.map((wk,i)=>{
       const isCur=i===weeks.length-1;
-      const body=bySem[wk].map(it=>cell('Estatus',it.estatus)+cell('Accionable',it.accionable)+cell('Impacto esperado',it.impacto_esperado)+(it.responsable?'<div class="ke-ins-resp">Responsable: '+esc(it.responsable)+'</div>':'')).join('<hr style="border:none;border-top:1px solid var(--ke-border);margin:14px 0">');
+      const body=bySem[wk].map(it=>(multi&&it.area?'<div class="ke-ins-area">'+esc(it.area)+'</div>':'')+cell('Estatus',it.estatus)+cell('Accionable',it.accionable)+cell('Impacto esperado',it.impacto_esperado)+cell('Resultado',it.resumen)+(it.responsable?'<div class="ke-ins-resp">Responsable: '+esc(it.responsable)+'</div>':'')).join('<hr style="border:none;border-top:1px solid var(--ke-border);margin:14px 0">');
       return '<div class="ke-ins-card'+(isCur?' cur':'')+'"><div class="ke-ins-wk">'+(isCur?'<b>Esta semana</b>':'Semana pasada')+' · '+fmtWk(wk)+'</div>'+body+'</div>';
     }).join('');
   }catch(e){console.error(e);el.innerHTML='<div class="ke-pg-sub">Error cargando conclusiones: '+e.message+'</div>';}
@@ -957,11 +974,43 @@ async function loadSocial(){
   }catch(e){console.error(e);setHTML('ig-posts','<div class="ke-pg-sub">Error cargando social: '+e.message+'</div>');}
 }
 
+/* ===== Historias / Instagram Stories (Graph API -> garcon_garcia_ig_stories) ===== */
+async function loadStories(){
+  const el=document.getElementById('ig-stories');if(!el)return;
+  try{
+    const headers={apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY};
+    const url=SUPABASE_URL+'/rest/v1/garcon_garcia_ig_stories?select=media_id,media_type,permalink,thumbnail_url,media_backup_url,caption,date_published,reach,views,replies,total_interactions&order=date_published.desc&limit=30';
+    const r=await fetch(url,{headers});
+    if(r.status===404){el.innerHTML='<div class="ke-pg-sub">Historias todavía no conectadas.</div>';return;}
+    if(!r.ok)throw new Error('stories '+r.status);
+    const rows=await r.json();
+    if(!rows.length){el.innerHTML='<div class="ke-pg-sub">Sin historias registradas todavía. Se capturan automáticamente cada 6 h desde Instagram.</div>';return;}
+    const kp=document.getElementById('st-kpis');if(kp)kp.style.display='';
+    setTxt('st-count',fmtInt(rows.length));
+    setTxt('st-reach',fmtInt(rows.reduce((s,x)=>s+(x.reach||0),0)));
+    setTxt('st-views',fmtInt(rows.reduce((s,x)=>s+(x.views||0),0)));
+    setTxt('st-int',fmtInt(rows.reduce((s,x)=>s+((x.total_interactions||0)+(x.replies||0)),0)));
+    const esc=v=>String(v==null?'':v).replace(/</g,'&lt;');
+    const p2=n=>String(n).padStart(2,'0');
+    el.innerHTML=rows.map(p=>{
+      const d=p.date_published?new Date(p.date_published):null;
+      const ds=d?(d.getDate()+' '+MES[d.getMonth()]+' · '+p2(d.getHours())+':'+p2(d.getMinutes())):'';
+      const img=p.media_backup_url||p.thumbnail_url||'';
+      const th=img?('<img src="'+esc(img)+'" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add(&#39;noimg&#39;);this.remove();">'):'';
+      const cap=esc(p.caption||'');const cs=cap.length>80?cap.slice(0,80)+'…':cap;
+      const link=esc(p.permalink||'https://instagram.com/garcongarcia');
+      return '<a class="ig-post" href="'+link+'" target="_blank" rel="noopener"><div class="ig-thumb story'+(th?'':' noimg')+'">'+th+'<span class="ig-badge">STORY</span></div><div class="ig-pbody"><div class="ig-pcap">'+(cs||'&nbsp;')+'</div><div class="ig-pdate">'+ds+'</div><div class="ig-pmetrics"><span>Alcance '+fmtInt(p.reach)+'</span><span>&#128065; '+fmtInt(p.views)+'</span><span>&#128172; '+fmtInt(p.replies)+'</span><span>Interac. '+fmtInt(p.total_interactions)+'</span></div></div></a>';
+    }).join('');
+  }catch(e){console.error(e);el.innerHTML='<div class="ke-pg-sub">Error cargando historias: '+e.message+'</div>';}
+}
+
 labelRange();
 loadData();
 loadObjetivos();
 loadInsights('Paid Media','insights-pm');
+loadInsights(['Social Media','Generación de Contenido'],'insights-sm');
 loadSocial();
+loadStories();
 let _mob=isMobile();
 window.addEventListener('resize',()=>{const m=isMobile();if(m!==_mob){_mob=m;if(_last)render(_last.c,_last.p,_last.D);}});
 
